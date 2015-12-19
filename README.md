@@ -6,3 +6,5 @@ You are required to have MatConvNet installed in order to create your own datase
 http://6.869.csail.mit.edu/fa15/challenge/data.tar.gz
 
 This repository contains the trained network model and the part of the dataset that has been used (in case you just want to run the code without having to install MatConvNet). You might have to adjust a few parameters in the code to get everything up and running but generally it should be ok.
+
+TODO: Implement learned model structures.
