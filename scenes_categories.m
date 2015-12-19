@@ -1,7 +1,18 @@
-function [hbn_tree, data] = scenes_categories()
-    data = get_data();
-    hbn_tree = build_hbn_tree(data);
-    hbn_tree = sample_hbn_tree(hbn_tree, data);
+function [hbn_tree, data, b_cat] = scenes_categories(validate)
+    % If val parameter is 0 or less, the model is run in the fitting regime
+    % using the training data. Otherwise the model is run in the validation
+    % regime using the validation data. In the latter case the model
+    % outputs the basic category of the given sample.
+    if (validate <= 0)
+        data = get_data();
+        hbn_tree = build_hbn_tree(data);
+        hbn_tree = sample_hbn_tree(hbn_tree, data);
+        save('hbn_tree.mat');
+    else
+        data = get_val_data();
+        load('hbn_tree.mat');
+        b_cat = sample_category_most_likely_cat_id(hbn_tree, data.X(3,:));
+    end
 end
 
 %% One (few)-shot(s) learning for fixed tree structure
@@ -89,7 +100,7 @@ end
 function hbn_tree = sample_hbn_tree(hbn_tree, data)
     % We want the actual samples now, not the initial values from the prior
     init = false;
-    Gibbs_steps = 200;
+    Gibbs_steps = 1000;
     fprintf('Starting Gibbs sampler...\n');
     for step = 1:Gibbs_steps
         sample_level_1(hbn_tree, data, init);
@@ -214,7 +225,7 @@ end
 
 % Normal distribution (with precision instead of MATLAB's default variance)
 function sample = normprecrnd(mu, tau, varargin)
-    sigma = sqrt(1./tau);
+    sigma = sqrt(tau);
     sample = normrnd(mu, sigma, varargin{:});
 end
 
@@ -237,17 +248,28 @@ end
 %% Data loaders
 
 function data = get_data()
-    data_path = fullfile('scenes_hbn_data_validation.mat');
+    data_path = fullfile('scenes_hbn_data.mat');
     reload_data = false;
     if (~exist(data_path, 'file') || reload_data)
-        data = load_data(data_path);
+        data = load_data(data_path, 0);
     else
         load(data_path, 'data');
         fprintf('Data has been loaded from %s\n\n', data_path);
     end
 end
 
-function data = load_data(saved_data_path)
+function data = get_val_data()
+    data_path = fullfile('scenes_hbn_data_validation.mat');
+    reload_data = false;
+    if (~exist(data_path, 'file') || reload_data)
+        data = load_data(data_path, 1);
+    else
+        load(data_path, 'data');
+        fprintf('Data has been loaded from %s\n\n', data_path);
+    end
+end
+
+function data = load_data(saved_data_path, validation)
     % Load both the input vectors X and their caterogies z_s and z_b
     fprintf('Loading input data...\n');
     matconvnet_path = '/Users/Sergey/matconvnet/matlab';
@@ -259,6 +281,9 @@ function data = load_data(saved_data_path)
     end
     project_path = '/Users/Sergey/cv_project';
     data_path = fullfile(project_path, 'data/images/train');
+    if (val)
+        data_path = fullfile(project_path, 'data/images');
+    end
     net_path = fullfile(project_path, 'miniplacesCNN/net-aug-epoch-36.mat');
     imstats_path = fullfile(project_path, 'miniplacesCNN/imageStats.mat');
     
@@ -276,6 +301,12 @@ function data = load_data(saved_data_path)
     % Limiting the number of samples for one of the categories to test the
     % generalization later on
     samples_per_categories(3) = 5;
+    
+    if (val)
+        categories = {'/val_subset'};
+        super_categories = [1];
+        samples_per_categories = 100*ones(1, numel(categories));
+    end
     
     % Modification for the shorter tree (for tests)
     % Uncomment to test and adjust the sampling process
